@@ -19,6 +19,12 @@ const char *namespace_types[] = {
 
 const int namespace_count = 7;
 
+typedef struct NSNode {
+    long long inode;
+    int count;
+    struct NSNode *next;
+} NSNode;
+
 /* ----------------------------- HELPERS ----------------------------- */
 
 static long long get_inode(const char *path) {
@@ -144,10 +150,10 @@ void measure_namespace_overhead(void) {
 
 /* ----------------- FUNÇÃO 5: GERAR RELATÓRIO COMPLETO ----------------- */
 
-void generate_namespace_report(const char *file) {
-    FILE *f = fopen(file, "w");
+void generate_namespace_report(const char *output) {
+    FILE *f = fopen(output, "w");
     if (!f) {
-        perror("Falha ao abrir arquivo para relatório");
+        perror("Erro ao abrir arquivo");
         return;
     }
 
@@ -155,9 +161,7 @@ void generate_namespace_report(const char *file) {
 
     for (int i = 0; i < namespace_count; i++) {
         const char *type = namespace_types[i];
-
-        long long target_inode = -1;
-        int count = 0;
+        NSNode *list = NULL;
 
         DIR *d = opendir("/proc");
         if (!d) continue;
@@ -172,21 +176,88 @@ void generate_namespace_report(const char *file) {
             snprintf(path, sizeof(path), "/proc/%d/ns/%s", pid, type);
 
             long long inode = get_inode(path);
-            if (inode == -1) continue;
-
-            if (target_inode == -1)
-                target_inode = inode;
-
-            if (inode == target_inode)
-                count++;
+            if (inode != -1)
+                add_inode(&list, inode);
         }
 
         closedir(d);
 
-        if (target_inode != -1)
-            fprintf(f, "%s,%lld,%d\n", type, target_inode, count);
+        NSNode *cur = list;
+        while (cur) {
+            fprintf(f, "%s,%lld,%d\n", type, cur->inode, cur->count);
+            cur = cur->next;
+        }
+
+        while (list) {
+            NSNode *tmp = list;
+            list = list->next;
+            free(tmp);
+        }
     }
 
     fclose(f);
-    printf("Relatório gerado em: %s\n", file);
+    printf("Relatório completo gerado em %s\n", output);
 }
+
+// -------------------- LISTAR TODOS OS NAMESPACES DO SISTEMA --------------------
+
+static void add_inode(NSNode **list, long long inode) {
+    NSNode *cur = *list;
+    while (cur) {
+        if (cur->inode == inode) {
+            cur->count++;
+            return;
+        }
+        cur = cur->next;
+    }
+
+    NSNode *new = malloc(sizeof(NSNode));
+    new->inode = inode;
+    new->count = 1;
+    new->next = *list;
+    *list = new;
+}
+
+void list_all_system_namespaces(void) {
+    printf("=== Todos os namespaces ativos no sistema ===\n");
+
+    for (int i = 0; i < namespace_count; i++) {
+        const char *type = namespace_types[i];
+        NSNode *list = NULL;
+
+        DIR *d = opendir("/proc");
+        if (!d) continue;
+
+        struct dirent *ent;
+        while ((ent = readdir(d))) {
+            if (!isdigit(ent->d_name[0])) continue;
+
+            pid_t pid = atoi(ent->d_name);
+
+            char path[256];
+            snprintf(path, sizeof(path), "/proc/%d/ns/%s", pid, type);
+
+            long long inode = get_inode(path);
+            if (inode != -1)
+                add_inode(&list, inode);
+        }
+
+        closedir(d);
+
+        printf("\n[%s] Namespaces encontrados:\n", type);
+
+        NSNode *cur = list;
+        while (cur) {
+            printf("  inode %-12lld  (%d processos)\n", cur->inode, cur->count);
+            cur = cur->next;
+        }
+
+        // liberar memória
+        while (list) {
+            NSNode *tmp = list;
+            list = list->next;
+            free(tmp);
+        }
+    }
+}
+
