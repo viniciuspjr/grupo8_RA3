@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <sched.h>
 #include <sys/wait.h>
+#include <ctype.h>
 
 #define NS_PATH_FMT "/proc/%d/ns/%s"
 #define STACK_SIZE 8192
@@ -26,6 +27,8 @@ typedef struct NSNode {
 } NSNode;
 
 /* ----------------------------- HELPERS ----------------------------- */
+
+static void add_inode(NSNode **list, long long inode);
 
 static long long get_inode(const char *path) {
     struct stat st;
