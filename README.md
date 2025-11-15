@@ -40,9 +40,17 @@ Requisitos:
 - Cgroup v1 habilitado
 - Permissões de root para operações envolvendo cgroups e monitoramento de I/O
 
-Compilação:
+## Compilação:
+
+**Observação:** Este projeto deve ser compilado e executado em ambiente Linux (use WSL no Windows).
 
 ```bash
+# Entrar no WSL (no Windows)
+wsl
+
+# Navegar até a pasta do projeto
+cd /mnt/c/Users/[seu_usuario]/VSCodeProjects/grupo8_RA3
+
 # Compilar tudo (executável principal, testes e workloads)
 make all
 
@@ -59,24 +67,62 @@ make workloads
 make clean
 ```
 
-Uso do Sistema Integrado:
+## Como Usar o Programa:
 
-O executável principal `resource-monitor` agora possui um menu interativo que integra
-todos os três componentes do sistema:
+### **Método Recomendado: Menu Interativo com 2 Terminais**
+
+O programa principal requer **dois terminais WSL** para funcionar corretamente:
+
+#### **Terminal 1 - Criar processo para monitorar:**
 
 ```bash
-# Executar o sistema com menu interativo
-./resource-monitor
+wsl
+cd /mnt/c/Users/[seu_usuario]/VSCodeProjects/grupo8_RA3
 
-# O menu principal oferece 3 opções:
-# 1. Resource Profiler - Monitorar CPU, Memória e I/O de processos
-# 2. Namespace Analyzer - Analisar e comparar namespaces
-# 3. Control Group Manager - Gerenciar cgroups e limites de recursos
+# Escolha um workload para criar um processo de teste:
+
+# Opção A: Workload de CPU (uso intensivo de processador)
+./workload_cpu 300
+
+# Opção B: Workload de Memória (aloca memória progressivamente)
+./workload_memory 500
+
+# Opção C: Workload de I/O (escreve/lê arquivos)
+./workload_io 100
 ```
 
-Cada submenu oferece funcionalidades específicas de forma interativa e intuitiva.
+**⚠️ IMPORTANTE:** Anote o **PID** que aparece na tela (ex: `PID do processo: 1234`)
 
-1. Monitoramento de Recursos:
+#### **Terminal 2 - Executar o menu de monitoramento:**
+
+```bash
+wsl
+cd /mnt/c/Users/[seu_usuario]/VSCodeProjects/grupo8_RA3
+
+# Executar com privilégios de root (necessário para I/O e cgroups)
+sudo ./resource-monitor
+```
+
+O menu principal oferece 3 componentes:
+- **1. Resource Profiler** - Monitorar CPU, Memória e I/O de processos
+- **2. Namespace Analyzer** - Analisar e comparar namespaces
+- **3. Control Group Manager** - Gerenciar cgroups e limites de recursos
+
+**Exemplo de uso no menu:**
+```
+Escolha uma opcao: 1         (Resource Profiler)
+Escolha uma opcao: 1         (Monitorar CPU)
+PID: 1234                    (PID anotado do Terminal 1)
+Duracao (s): 10              (Monitorar por 10 segundos)
+```
+
+### **Método Alternativo: Testes Individuais**
+
+Você também pode usar os programas de teste individuais sem o menu:
+
+### **Método Alternativo: Testes Individuais**
+
+Você também pode usar os programas de teste individuais sem o menu:
 
 ```bash
 # Testar monitor de CPU (requer PID de um processo em execução)
@@ -89,7 +135,9 @@ Cada submenu oferece funcionalidades específicas de forma interativa e intuitiv
 sudo ./test_io
 ```
 
-2. Programas de Workload (para testes):
+## Programas de Workload (para testes):
+
+Os workloads criam processos que podem ser monitorados:
 
 ```bash
 # Workload intensivo de CPU (60 segundos padrão)
@@ -105,25 +153,21 @@ sudo ./test_io
 # Exemplo: ./workload_io 50
 ```
 
-3. Exemplo de uso completo:
-
-```bash
-# Terminal 1: Executar um workload
-./workload_cpu 60
-
-# Terminal 2: Monitorar o workload (use o PID exibido pelo workload)
-./test_cpu
-# Digite o PID quando solicitado
-# Digite a duração do monitoramento (ex: 30 segundos)
-```
-
-Documentação Adicional:
+## Documentação Adicional:
 
 - `docs/ARCHITECTURE.md` - Arquitetura do sistema
-- `docs/ALUNO2_TESTES.md` - Documentação detalhada dos testes e workloads (Aluno 2)
+- `docs/TESTES.md` - Documentação detalhada dos testes e workloads
 
+## Requisitos do Sistema:
 
-Contribuição dos Alunos:
+- **GCC** (compilador C)
+- **Linux Kernel 5.x ou superior**
+- **Cgroup v1** habilitado
+- **Permissões de root** (sudo) para:
+  - Monitoramento de I/O (`/proc/<pid>/io`)
+  - Operações com cgroups (`/sys/fs/cgroup`)
+
+## Contribuição dos Alunos:
 
 - Aluno 1 – Resource Profiler + Integração (Felipe Simionato Bueno)
 
