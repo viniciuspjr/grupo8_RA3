@@ -53,3 +53,12 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Executáveis do projeto (Linux binaries)
+resource-monitor
+test_cpu
+test_memory
+test_io
+workload_cpu
+workload_memory
+workload_io
