@@ -1,157 +1,301 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // getpid() e geteuid()
+#include <unistd.h>
 
-// Módulos existentes
 #include "monitor.h"
 #include "namespace.h"
 #include "cgroup.h"
 
-void print_usage(const char *prog_name) {
-    fprintf(stderr, "Uso: %s <comando> [argumentos...]\n\n", prog_name);
+void clear_input_buffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
 
-    fprintf(stderr, "===== COMANDOS DO ALUNO 3 (NAMESPACES) =====\n");
-    fprintf(stderr, "  ns_list <pid>                     - Lista todos os namespaces de um processo\n");
-    fprintf(stderr, "  ns_compare <pid1> <pid2>          - Compara namespaces entre dois processos\n");
-    fprintf(stderr, "  ns_members <type> <inode>         - Lista processos que compartilham um namespace\n");
-    fprintf(stderr, "  ns_overhead                       - Mede o overhead de criação de namespaces\n");
-    fprintf(stderr, "  ns_report <arquivo.csv>           - Gera relatório completo dos namespaces do sistema\n\n");
+void print_main_menu(void) {
+    printf("\n========================================\n");
+    printf("   RESOURCE MONITOR - MENU PRINCIPAL   \n");
+    printf("========================================\n");
+    printf("  1. Resource Profiler (CPU, Memoria, I/O)\n");
+    printf("  2. Namespace Analyzer\n");
+    printf("  3. Control Group Manager\n");
+    printf("  0. Sair\n");
+    printf("\nEscolha uma opcao: ");
+}
 
-    fprintf(stderr, "===== COMANDOS DO ALUNO 4 (CGROUPS, requer sudo) =====\n");
-    fprintf(stderr, "  create <controller> <group_name>  - Cria um cgroup\n");
-    fprintf(stderr, "  move <controller> <group_name> <pid> - Move um PID para o cgroup\n");
-    fprintf(stderr, "  set_mem <group> <bytes>           - Define limite de memória\n");
-    fprintf(stderr, "  set_cpu <group> <cores>           - Define limite de CPU\n");
-    fprintf(stderr, "  get_mem <group>                   - Lê uso de memória\n");
-    fprintf(stderr, "  get_cpu <group>                   - Lê uso de CPU\n");
-    fprintf(stderr, "  get_io <group>                    - Lê estatísticas de I/O\n");
-    fprintf(stderr, "  stress_test <group>               - Executa teste de estresse no grupo\n");
+void print_profiler_menu(void) {
+    printf("\n========================================\n");
+    printf("        RESOURCE PROFILER - MENU        \n");
+    printf("========================================\n");
+    printf("  1. Monitorar CPU de um processo\n");
+    printf("  2. Monitorar Memoria de um processo\n");
+    printf("  3. Monitorar I/O de um processo\n");
+    printf("  4. Monitorar TUDO (CPU + Memoria + I/O)\n");
+    printf("  0. Voltar\n");
+    printf("\nEscolha uma opcao: ");
+}
+
+void print_namespace_menu(void) {
+    printf("\n========================================\n");
+    printf("      NAMESPACE ANALYZER - MENU        \n");
+    printf("========================================\n");
+    printf("  1. Listar namespaces de um processo\n");
+    printf("  2. Comparar namespaces entre dois processos\n");
+    printf("  3. Listar processos em um namespace\n");
+    printf("  4. Medir overhead de criacao\n");
+    printf("  5. Gerar relatorio completo\n");
+    printf("  0. Voltar\n");
+    printf("\nEscolha uma opcao: ");
+}
+
+void print_cgroup_menu(void) {
+    printf("\n========================================\n");
+    printf("    CONTROL GROUP MANAGER - MENU       \n");
+    printf("========================================\n");
+    printf("  1. Criar cgroup\n");
+    printf("  2. Mover processo para cgroup\n");
+    printf("  3. Definir limite de memoria\n");
+    printf("  4. Definir limite de CPU\n");
+    printf("  5. Ler uso de memoria\n");
+    printf("  6. Ler uso de CPU\n");
+    printf("  7. Ler estatisticas de I/O\n");
+    printf("  8. Teste de estresse\n");
+    printf("  0. Voltar\n");
+    printf("\nEscolha uma opcao: ");
 }
 
 int run_stress_test(const char *group_name) {
     pid_t self_pid = getpid();
-    printf("Iniciando teste de estresse (PID: %d) no grupo: %s\n", self_pid, group_name);
+    printf("Teste de estresse no grupo %s (PID: %d)\n", group_name, self_pid);
 
-    if (cgroup_create("cpu", group_name) != 0) return -1;
-    if (cgroup_create("memory", group_name) != 0) return -1;
+    cgroup_create("cpu", group_name);
+    cgroup_create("memory", group_name);
+    cgroup_move_pid("cpu", group_name, self_pid);
+    cgroup_move_pid("memory", group_name, self_pid);
+    cgroup_set_memory_limit(group_name, 100 * 1024 * 1024);
+    cgroup_set_cpu_limit(group_name, 0.5, 100000);
 
-    if (cgroup_move_pid("cpu", group_name, self_pid) != 0) return -1;
-    if (cgroup_move_pid("memory", group_name, self_pid) != 0) return -1;
-
-    long long mem_limit = 100 * 1024 * 1024;
-    if (cgroup_set_memory_limit(group_name, mem_limit) != 0) return -1;
-
-    double cpu_limit = 0.5;
-    if (cgroup_set_cpu_limit(group_name, cpu_limit, 100000) != 0) return -1;
-
-    printf("Limites aplicados. Pressione Enter para continuar...\n");
+    printf("Limites aplicados. Pressione Enter...\n");
     getchar();
 
-    long long mem_usage = cgroup_get_memory_usage(group_name);
-    long long cpu_usage = cgroup_get_cpu_usage(group_name);
-    CgroupIOStats io_stats = cgroup_get_io_stats(group_name);
-
-    printf("--- Métricas Finais ---\n");
-    printf("Memória usada: %lld bytes\n", mem_usage);
-    printf("CPU usada: %lld us\n", cpu_usage);
-    if (io_stats.rbytes != -1) {
-        printf("I/O Lidos: %lld\n", io_stats.rbytes);
-        printf("I/O Escritos: %lld\n", io_stats.wbytes);
-    }
+    printf("Memoria: %lld bytes\n", cgroup_get_memory_usage(group_name));
+    printf("CPU: %lld us\n", cgroup_get_cpu_usage(group_name));
 
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        print_usage(argv[0]);
-        return 1;
+void handle_profiler_menu(void) {
+    int opt, pid, dur;
+    
+    while (1) {
+        print_profiler_menu();
+        if (scanf("%d", &opt) != 1) { clear_input_buffer(); continue; }
+        clear_input_buffer();
+        if (opt == 0) break;
+        
+        switch (opt) {
+            case 1: // CPU
+                printf("\nPID: "); scanf("%d", &pid);
+                printf("Duracao (s): "); scanf("%d", &dur);
+                clear_input_buffer();
+                
+                CpuMonitorState cs;
+                if (cpu_monitor_init(&cs, pid) == 0) {
+                    printf("\nMonitorando CPU...\n");
+                    for (int i = 0; i < dur; i++) {
+                        CpuSample smp;
+                        sleep(1);
+                        if (cpu_monitor_sample(&cs, &smp) == 0) {
+                            printf("[%d/%d] CPU: %.2f%% | Threads: %llu\n", 
+                                   i+1, dur, smp.cpu_percent, smp.threads);
+                        }
+                    }
+                }
+                break;
+                
+            case 2: // Memoria
+                printf("\nPID: "); scanf("%d", &pid);
+                printf("Duracao (s): "); scanf("%d", &dur);
+                clear_input_buffer();
+                
+                printf("\nMonitorando Memoria...\n");
+                for (int i = 0; i < dur; i++) {
+                    MemorySample ms;
+                    sleep(1);
+                    if (memory_monitor_sample(pid, &ms) == 0) {
+                        printf("[%d/%d] RSS: %.2f MB | VSZ: %.2f MB\n",
+                               i+1, dur, 
+                               ms.rss_bytes/(1024.0*1024.0),
+                               ms.vsize_bytes/(1024.0*1024.0));
+                    }
+                }
+                break;
+                
+            case 3: // I/O
+                if (geteuid() != 0) printf("\nAVISO: Requer sudo\n");
+                printf("\nPID: "); scanf("%d", &pid);
+                printf("Duracao (s): "); scanf("%d", &dur);
+                clear_input_buffer();
+                
+                IoMonitorState is;
+                if (io_monitor_init(&is, pid) == 0) {
+                    printf("\nMonitorando I/O...\n");
+                    for (int i = 0; i < dur; i++) {
+                        IoSample ios;
+                        sleep(1);
+                        if (io_monitor_sample(&is, &ios, 1.0) == 0) {
+                            printf("[%d/%d] R: %.2f KB/s | W: %.2f KB/s\n",
+                                   i+1, dur,
+                                   ios.read_rate_bytes_per_sec/1024.0,
+                                   ios.write_rate_bytes_per_sec/1024.0);
+                        }
+                    }
+                }
+                break;
+                
+            case 4: // Tudo
+                if (geteuid() != 0) printf("\nAVISO: I/O requer sudo\n");
+                printf("\nPID: "); scanf("%d", &pid);
+                printf("Duracao (s): "); scanf("%d", &dur);
+                clear_input_buffer();
+                
+                CpuMonitorState csa;
+                IoMonitorState isa;
+                cpu_monitor_init(&csa, pid);
+                int io_ok = (io_monitor_init(&isa, pid) == 0);
+                
+                printf("\nMonitorando tudo...\n");
+                for (int i = 0; i < dur; i++) {
+                    CpuSample c; MemorySample m; IoSample io;
+                    sleep(1);
+                    cpu_monitor_sample(&csa, &c);
+                    memory_monitor_sample(pid, &m);
+                    if (io_ok) io_monitor_sample(&isa, &io, 1.0);
+                    
+                    printf("[%d/%d] CPU: %.1f%% | Mem: %.1f MB",
+                           i+1, dur, c.cpu_percent, m.rss_bytes/(1024.0*1024.0));
+                    if (io_ok) printf(" | I/O: %.1f KB/s", 
+                                      (io.read_rate_bytes_per_sec+io.write_rate_bytes_per_sec)/1024.0);
+                    printf("\n");
+                }
+                break;
+        }
     }
+}
 
-    const char *command = argv[1];
-
-    // Aviso sobre sudo (somente para cgroups)
-    if (geteuid() != 0 &&
-        (strcmp(command, "create") == 0 ||
-         strcmp(command, "move") == 0 ||
-         strcmp(command, "set_mem") == 0 ||
-         strcmp(command, "set_cpu") == 0 ||
-         strcmp(command, "stress_test") == 0)) {
-
-        fprintf(stderr, "AVISO: Este comando deve ser executado com sudo.\n");
+void handle_namespace_menu(void) {
+    int opt; pid_t p1, p2; char t[32], f[256]; long long in;
+    
+    while (1) {
+        print_namespace_menu();
+        if (scanf("%d", &opt) != 1) { clear_input_buffer(); continue; }
+        clear_input_buffer();
+        if (opt == 0) break;
+        
+        switch (opt) {
+            case 1:
+                printf("\nPID: "); scanf("%d", &p1); clear_input_buffer();
+                list_process_namespaces(p1);
+                break;
+            case 2:
+                printf("\nPID 1: "); scanf("%d", &p1);
+                printf("PID 2: "); scanf("%d", &p2); clear_input_buffer();
+                compare_namespaces(p1, p2);
+                break;
+            case 3:
+                printf("\nTipo (pid/net/mnt): "); scanf("%31s", t);
+                printf("Inode: "); scanf("%lld", &in); clear_input_buffer();
+                list_namespace_members(t, in);
+                break;
+            case 4:
+                measure_namespace_overhead();
+                break;
+            case 5:
+                printf("\nArquivo: "); scanf("%255s", f); clear_input_buffer();
+                generate_namespace_report(f);
+                break;
+        }
     }
+}
 
-    // ==============================
-    // 🔵 COMANDOS DO ALUNO 3 (NAMESPACES)
-    // ==============================
-
-    if (strcmp(command, "ns_list") == 0 && argc == 3) {
-        list_process_namespaces(atoi(argv[2]));
+void handle_cgroup_menu(void) {
+    int opt; char c[64], g[256]; pid_t p; long long b; double co;
+    
+    while (1) {
+        print_cgroup_menu();
+        if (scanf("%d", &opt) != 1) { clear_input_buffer(); continue; }
+        clear_input_buffer();
+        if (opt == 0) break;
+        
+        if (geteuid() != 0 && opt <= 4) printf("\nAVISO: Requer sudo\n");
+        
+        switch (opt) {
+            case 1:
+                printf("\nControlador (cpu/memory): "); scanf("%63s", c);
+                printf("Nome do grupo: "); scanf("%255s", g); clear_input_buffer();
+                if (cgroup_create(c, g) == 0) printf("Criado!\n");
+                break;
+            case 2:
+                printf("\nControlador: "); scanf("%63s", c);
+                printf("Grupo: "); scanf("%255s", g);
+                printf("PID: "); scanf("%d", &p); clear_input_buffer();
+                if (cgroup_move_pid(c, g, p) == 0) printf("Movido!\n");
+                break;
+            case 3:
+                printf("\nGrupo: "); scanf("%255s", g);
+                printf("Bytes: "); scanf("%lld", &b); clear_input_buffer();
+                if (cgroup_set_memory_limit(g, b) == 0) printf("Limite definido!\n");
+                break;
+            case 4:
+                printf("\nGrupo: "); scanf("%255s", g);
+                printf("Cores: "); scanf("%lf", &co); clear_input_buffer();
+                if (cgroup_set_cpu_limit(g, co, 100000) == 0) printf("Limite definido!\n");
+                break;
+            case 5:
+                printf("\nGrupo: "); scanf("%255s", g); clear_input_buffer();
+                printf("Memoria: %lld bytes\n", cgroup_get_memory_usage(g));
+                break;
+            case 6:
+                printf("\nGrupo: "); scanf("%255s", g); clear_input_buffer();
+                printf("CPU: %lld us\n", cgroup_get_cpu_usage(g));
+                break;
+            case 7:
+                printf("\nGrupo: "); scanf("%255s", g); clear_input_buffer();
+                CgroupIOStats io = cgroup_get_io_stats(g);
+                printf("I/O - R: %lld | W: %lld\n", io.rbytes, io.wbytes);
+                break;
+            case 8:
+                printf("\nGrupo: "); scanf("%255s", g); clear_input_buffer();
+                run_stress_test(g);
+                break;
+        }
     }
+}
 
-    else if (strcmp(command, "ns_compare") == 0 && argc == 4) {
-        compare_namespaces(atoi(argv[2]), atoi(argv[3]));
+int main(void) {
+    int opt;
+    
+    printf("\n================================================\n");
+    printf("  RESOURCE MONITOR - SISTEMA INTEGRADO\n");
+    printf("================================================\n");
+    printf("Grupo 8: Felipe, Vinicius, Kevin, Joao\n");
+    
+    while (1) {
+        print_main_menu();
+        if (scanf("%d", &opt) != 1) { clear_input_buffer(); continue; }
+        clear_input_buffer();
+        
+        switch (opt) {
+            case 1: handle_profiler_menu(); break;
+            case 2: handle_namespace_menu(); break;
+            case 3: handle_cgroup_menu(); break;
+            case 0:
+                printf("\nSaindo... Ate logo!\n\n");
+                return 0;
+            default:
+                printf("\nOpcao invalida!\n");
+        }
     }
-
-    else if (strcmp(command, "ns_members") == 0 && argc == 4) {
-        list_namespace_members(argv[2], atoll(argv[3]));
-    }
-
-    else if (strcmp(command, "ns_overhead") == 0) {
-        measure_namespace_overhead();
-    }
-
-    else if (strcmp(command, "ns_report") == 0 && argc == 3) {
-        generate_namespace_report(argv[2]);
-    }
-
-    // ==============================
-    // 🔵 COMANDOS DO ALUNO 4 (CGROUPS)
-    // ==============================
-
-    else if (strcmp(command, "create") == 0 && argc == 4) {
-        if (cgroup_create(argv[2], argv[3]) != 0)
-            fprintf(stderr, "Falha ao criar cgroup.\n");
-    }
-
-    else if (strcmp(command, "move") == 0 && argc == 5) {
-        pid_t pid = atoi(argv[4]);
-        if (cgroup_move_pid(argv[2], argv[3], pid) != 0)
-            fprintf(stderr, "Falha ao mover PID.\n");
-    }
-
-    else if (strcmp(command, "set_mem") == 0 && argc == 4) {
-        if (cgroup_set_memory_limit(argv[2], atoll(argv[3])) != 0)
-            fprintf(stderr, "Falha ao definir limite de memória.\n");
-    }
-
-    else if (strcmp(command, "set_cpu") == 0 && argc == 4) {
-        if (cgroup_set_cpu_limit(argv[2], atof(argv[3]), 100000) != 0)
-            fprintf(stderr, "Falha ao definir limite de CPU.\n");
-    }
-
-    else if (strcmp(command, "get_mem") == 0 && argc == 3) {
-        printf("Memória usada: %lld\n", cgroup_get_memory_usage(argv[2]));
-    }
-
-    else if (strcmp(command, "get_cpu") == 0 && argc == 3) {
-        printf("CPU usada: %lld us\n", cgroup_get_cpu_usage(argv[2]));
-    }
-
-    else if (strcmp(command, "get_io") == 0 && argc == 3) {
-        CgroupIOStats io = cgroup_get_io_stats(argv[2]);
-        printf("Lidos: %lld bytes\nEscritos: %lld bytes\n", io.rbytes, io.wbytes);
-    }
-
-    else if (strcmp(command, "stress_test") == 0 && argc == 3) {
-        run_stress_test(argv[2]);
-    }
-
-    else {
-        print_usage(argv[0]);
-        return 1;
-    }
-
+    
     return 0;
 }

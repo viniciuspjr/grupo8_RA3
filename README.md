@@ -59,7 +59,22 @@ make workloads
 make clean
 ```
 
-Uso:
+Uso do Sistema Integrado:
+
+O executável principal `resource-monitor` agora possui um menu interativo que integra
+todos os três componentes do sistema:
+
+```bash
+# Executar o sistema com menu interativo
+./resource-monitor
+
+# O menu principal oferece 3 opções:
+# 1. Resource Profiler - Monitorar CPU, Memória e I/O de processos
+# 2. Namespace Analyzer - Analisar e comparar namespaces
+# 3. Control Group Manager - Gerenciar cgroups e limites de recursos
+```
+
+Cada submenu oferece funcionalidades específicas de forma interativa e intuitiva.
 
 1. Monitoramento de Recursos:
 
