@@ -98,12 +98,20 @@ static int read_process_times_and_threads(pid_t pid,
     unsigned long long stime = 0;        // tempo em modo sistema em ticks
     long threads = 0;                    // número de threads     
 
+    // Formato de /proc/[pid]/stat após o ')':
+    // 1) state (char)
+    // 2) ppid (int), 3) pgrp (int), 4) session (int), 5) tty_nr (int)
+    // 6) tpgid (int), 7) flags (uint), 8) minflt (ulong), 9) cminflt (ulong)
+    // 10) majflt (ulong), 11) cmajflt (ulong)
+    // 12) utime (ulong), 13) stime (ulong)  <-- queremos esses
+    // 14) cutime (long), 15) cstime (long), 16) priority (long), 17) nice (long)
+    // 18) num_threads (long)  <-- e esse
     int scanned = sscanf(
         p,
-        "%*c %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u "  // elementos ignorados
-        "%llu %llu "                                    // utime, stime
-        "%*d %*d %*d %*d "                              // elementos ignorados
-        "%ld",                                          // num_threads
+        " %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u "  // campos 1-11
+        "%llu %llu "                                      // campos 12-13: utime, stime
+        "%*d %*d %*d %*d "                               // campos 14-17
+        "%ld",                                            // campo 18: num_threads
         &utime, &stime, &threads);
 
 

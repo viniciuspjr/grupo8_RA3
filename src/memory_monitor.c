@@ -37,8 +37,7 @@ static int read_rss_vsz(pid_t pid,
     // Lê size e resident, e descarta o resto
     int n = sscanf(
         buf, 
-        "%llu %llu"
-        "%*d %*d %*d %*d %*d",  // elementos ignorados
+        "%llu %llu %*u %*u %*u %*u %*u",  // elementos ignorados
         &size, &resident);
 
     if (n < 2) {
@@ -97,13 +96,15 @@ static int read_page_faults(pid_t pid, unsigned long long *faults_out) {
     unsigned long long minflt = 0;  // minor page faults - page faults leves (sem I/O de disco)
     unsigned long long majflt = 0;  // major page faults - page faults "grandes" (precisam de I/O de disco)
 
-    // state, ppid, pgrp, session, tty_nr, tpgid, flags
+    // Formato de /proc/[pid]/stat após o ')':
+    // 1) state (char), 2) ppid, 3) pgrp, 4) session, 5) tty_nr, 6) tpgid
+    // 7) flags, 8) minflt, 9) cminflt, 10) majflt
     int scanned = sscanf(
         p,
-        "%*c %*d %*d %*d %*d %*d %*u " // elementos ignorados
-        "%llu"                         // minflt
-        "%*u"                          // elemento ignorado
-        "%llu",                        // majflt
+        " %*c %*d %*d %*d %*d %*d %*u "  // campos 1-7
+        "%llu "                           // campo 8: minflt
+        "%*u "                            // campo 9: cminflt
+        "%llu",                           // campo 10: majflt
         &minflt, &majflt);
 
     if (scanned != 2) {
