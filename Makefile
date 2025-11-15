@@ -21,11 +21,8 @@ OBJS = $(SRCS:.c=.o)
 # Arquivos de teste
 TEST_PROGS = test_cpu test_memory test_io
 
-# Programas de workload
-WORKLOAD_PROGS = workload_cpu workload_memory workload_io
-
 # Regra principal: compilar o executável e todos os testes
-all: $(TARGET) tests workloads
+all: $(TARGET) tests
 
 # Regra para linkar o executável final
 $(TARGET): $(OBJS)
@@ -52,28 +49,11 @@ test_memory: tests/test_memory.c $(filter-out src/main.o, $(OBJS))
 test_io: tests/test_io.c $(filter-out src/main.o, $(OBJS))
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-# ===== WORKLOADS =====
-
-# Compila todos os workloads
-workloads: $(WORKLOAD_PROGS)
-
-# workload_cpu: programa intensivo em CPU
-workload_cpu: tests/workload_cpu.c
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-# workload_memory: programa intensivo em memória
-workload_memory: tests/workload_memory.c
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-# workload_io: programa intensivo em I/O
-workload_io: tests/workload_io.c
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
 # ===== LIMPEZA =====
 
 # Regra para limpar os arquivos compilados
 clean:
-	rm -f $(TARGET) $(OBJS) $(TEST_PROGS) $(WORKLOAD_PROGS)
+	rm -f $(TARGET) $(OBJS) $(TEST_PROGS)
 
 # Phony garante que as regras executem mesmo se existir arquivo com o mesmo nome
-.PHONY: all tests workloads clean
+.PHONY: all tests clean
