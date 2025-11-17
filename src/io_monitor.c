@@ -323,16 +323,16 @@ int io_monitor_sample(IoMonitorState *state, IoSample *sample, double interval_s
     return 0;
 }
 
-int io_sample_csv_write(const IoSample *sample) {
-    static FILE *fp = NULL;        // mesmo arquivo para toda a coleta
+static FILE *io_csv_file = NULL;  // arquivo CSV para I/O
 
+int io_sample_csv_write(const IoSample *sample) {
     if (!sample) {
         fprintf(stderr, "Erro: ponteiro nulo em io_sample_csv_write\n");
         return -1;
     }
 
     // cria o arquivo na primeira chamada
-    if (!fp) {
+    if (!io_csv_file) {
         // Formata o timestamp para o nome do arquivo (YYYYMMDD_HHMMSS)
         struct tm *tm_info = localtime(&sample->timestamp);
         char filename[64];
@@ -345,18 +345,18 @@ int io_sample_csv_write(const IoSample *sample) {
                  tm_info->tm_min,
                  tm_info->tm_sec);
 
-        fp = fopen(filename, "w");
-        if (!fp) {
+        io_csv_file = fopen(filename, "w");
+        if (!io_csv_file) {
             fprintf(stderr, "Erro: nao foi possivel criar %s\n", filename);
             return -1;
         }
 
         // Escreve o cabeçalho do CSV
-        fprintf(fp, "timestamp,pid,read_bytes,write_bytes,io_syscalls,disk_ops,read_rate_bytes_per_sec,write_rate_bytes_per_sec,disk_ops_per_sec,rx_bytes,tx_bytes,rx_packets,tx_packets,connections\n");
-        fflush(fp);
+        fprintf(io_csv_file, "timestamp,pid,read_bytes,write_bytes,io_syscalls,disk_ops,read_rate_bytes_per_sec,write_rate_bytes_per_sec,disk_ops_per_sec,rx_bytes,tx_bytes,rx_packets,tx_packets,connections\n");
+        fflush(io_csv_file);
     }
 
-    if (fprintf(fp,
+    if (fprintf(io_csv_file,
                 "%lld,%d,%llu,%llu,%llu,%llu,%.2f,%.2f,%.2f,%llu,%llu,%llu,%llu,%llu\n",
                 (long long)sample->timestamp,
                 (int)sample->pid,
@@ -376,6 +376,13 @@ int io_sample_csv_write(const IoSample *sample) {
         return -1;
     }
 
-    fflush(fp);
+    fflush(io_csv_file);
     return 0;
+}
+
+void io_sample_csv_close(void) {
+    if (io_csv_file) {
+        fclose(io_csv_file);
+        io_csv_file = NULL;
+    }
 }

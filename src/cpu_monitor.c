@@ -269,16 +269,16 @@ int cpu_monitor_sample(CpuMonitorState *state, CpuSample *sample) {
     return 0;
 }
 
-int cpu_sample_csv_write(const CpuSample *sample) {
-    static FILE *fp = NULL;        // mesmo arquivo para toda a coleta
+static FILE *cpu_csv_file = NULL;  // arquivo CSV para CPU
 
+int cpu_sample_csv_write(const CpuSample *sample) {
     if (!sample) {
         fprintf(stderr, "Erro: ponteiro nulo em cpu_sample_csv_write\n");
         return -1;
     }
 
     // cria o arquivo na primeira chamada
-    if (!fp) {
+    if (!cpu_csv_file) {
 
         // Formata o timestamp para o nome do arquivo (YYYYMMDD_HHMMSS)
         struct tm *tm_info = localtime(&sample->timestamp);
@@ -292,18 +292,18 @@ int cpu_sample_csv_write(const CpuSample *sample) {
                  tm_info->tm_min,
                  tm_info->tm_sec);
 
-        fp = fopen(filename, "w");
-        if (!fp) {
+        cpu_csv_file = fopen(filename, "w");
+        if (!cpu_csv_file) {
             fprintf(stderr, "Erro: nao foi possivel criar %s\n", filename);
             return -1;
         }
 
         // Escreve o cabeçalho do CSV
-        fprintf(fp, "timestamp,pid,cpu_percent,user_time_ticks,system_time_ticks,context_switches,threads\n");
-        fflush(fp);
+        fprintf(cpu_csv_file, "timestamp,pid,cpu_percent,user_time_ticks,system_time_ticks,context_switches,threads\n");
+        fflush(cpu_csv_file);
     }
 
-    if (fprintf(fp,
+    if (fprintf(cpu_csv_file,
                 "%lld,%d,%.2f,%llu,%llu,%llu,%llu\n",
                 (long long)sample->timestamp,
                 (int)sample->pid,
@@ -316,6 +316,13 @@ int cpu_sample_csv_write(const CpuSample *sample) {
         return -1;
     }
 
-    fflush(fp);
+    fflush(cpu_csv_file);
     return 0;
+}
+
+void cpu_sample_csv_close(void) {
+    if (cpu_csv_file) {
+        fclose(cpu_csv_file);
+        cpu_csv_file = NULL;
+    }
 }

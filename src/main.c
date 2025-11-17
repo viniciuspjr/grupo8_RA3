@@ -115,6 +115,7 @@ void handle_profiler_menu(void) {
                             cpu_sample_csv_write(&smp); // salva em CSV
                         }
                     }
+                    cpu_sample_csv_close(); // fecha o arquivo CSV
                 }
                 break;
                 
@@ -140,6 +141,7 @@ void handle_profiler_menu(void) {
                         memory_sample_csv_write(&ms); // salva em CSV
                     }
                 }
+                memory_sample_csv_close(); // fecha o arquivo CSV
                 break;
                 
             case 3: // I/O
@@ -167,6 +169,7 @@ void handle_profiler_menu(void) {
                             io_sample_csv_write(&ios); // salva em CSV
                         }
                     }
+                    io_sample_csv_close(); // fecha o arquivo CSV
                 }
                 break;
                 
@@ -233,6 +236,11 @@ void handle_profiler_menu(void) {
                     memory_sample_csv_write(&m);
                     if (io_ok) io_sample_csv_write(&io);
                 }
+                
+                // Fecha todos os arquivos CSV
+                cpu_sample_csv_close();
+                memory_sample_csv_close();
+                if (io_ok) io_sample_csv_close();
                 break;
         }
     }

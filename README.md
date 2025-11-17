@@ -15,10 +15,13 @@ Este projeto implementa um sistema completo de monitoramento, análise e limita�
 
 #### 1. Resource Profiler
 Coleta métricas detalhadas de processos através de `/proc`:
-- **CPU**: tempo de usuário/sistema, context switches, threads
+- **CPU**: tempo de usuário/sistema, context switches, threads, percentual de uso
 - **Memória**: RSS, VSZ, page faults, swap
-- **I/O**: bytes lidos/escritos, syscalls de I/O
+- **I/O**: bytes lidos/escritos, syscalls de I/O, operações de disco
 - **Rede**: bytes rx/tx, pacotes, conexões TCP ativas
+- **Exportação CSV**: Todas as métricas são salvas em arquivos CSV com timestamp formatado
+- **Visualização**: Gráficos interativos de todas as métricas coletadas
+- **Validação**: Sem memory leaks (validado com valgrind)
 
 #### 2. Namespace Analyzer
 Analisa isolamento de processos via namespaces:
@@ -60,8 +63,10 @@ resource-monitor/
 │   ├── test_memory.c      # Teste do monitor de memória
 │   └── test_io.c          # Teste do monitor de I/O
 └── scripts/
-    ├── visualize.py       # Visualização de dados (futuro)
-    └── compare_tools.sh   # Comparação com ferramentas (futuro)
+    ├── visualize.py       # Visualização de dados em gráficos
+    ├── run_tests.sh       # Execução automatizada de testes
+    ├── valgrind_test.sh   # Validação de memory leaks
+    └── compare_tools.sh   # Comparação com ferramentas do sistema
 ```
 
 ## Requisitos e Dependências
@@ -85,6 +90,18 @@ O programa requer privilégios de **root (sudo)** para:
 ### Bibliotecas
 - **libc** (bibliotecas padrão C) - incluída no sistema
 - **libm** (biblioteca matemática) - incluída no sistema
+
+### Ferramentas Opcionais (para visualização e testes)
+- **Python 3.x** com pandas e matplotlib para visualização de gráficos
+- **Valgrind** para validação de memory leaks
+
+```bash
+# Instalar dependências Python (opcional)
+sudo apt install python3-pandas python3-matplotlib
+
+# Instalar valgrind (opcional)
+sudo apt install valgrind
+```
 
 ## Instruções de Compilação
 
@@ -248,6 +265,66 @@ Além do menu integrado, você pode executar testes individuais:
 sudo ./test_io
 ```
 
+### Testes Automatizados com Visualização
+
+Execute todos os testes e gere gráficos automaticamente:
+
+```bash
+# Teste básico (5 segundos, sem I/O)
+./scripts/run_tests.sh 5
+
+# Teste completo com I/O (requer sudo)
+sudo ./scripts/run_tests.sh 10
+```
+
+**O que acontece:**
+1. Compila o projeto e testes
+2. Cria um processo de teste em background
+3. Executa test_cpu, test_memory e test_io
+4. Gera arquivos CSV com timestamp formatado
+5. Abre gráficos interativos para cada tipo de métrica
+
+### Visualização de Dados CSV
+
+Visualize qualquer arquivo CSV gerado:
+
+```bash
+# Visualizar métricas de CPU
+python3 scripts/visualize.py cpu-monitor-*.csv
+
+# Visualizar métricas de memória
+python3 scripts/visualize.py memory-monitor-*.csv
+
+# Visualizar métricas de I/O
+python3 scripts/visualize.py io-monitor-*.csv
+```
+
+**Gráficos gerados:**
+- **CPU**: Usage %, User/System Time, Context Switches, Threads
+- **Memória**: RSS/VSZ, Page Faults, Swap, Estatísticas
+- **I/O**: Disk Rate, Ops/sec, Syscalls, Network Connections
+
+### Validação de Memory Leaks
+
+Valide que não há memory leaks no Resource Profiler:
+
+```bash
+# Validação automática de todos os monitores
+./scripts/valgrind_test.sh
+
+# Validação manual com valgrind
+valgrind --leak-check=full ./resource-monitor
+# (escolha opção 1 -> 1 -> <PID> -> 3 -> 0 -> 0)
+```
+
+**Resultado esperado:**
+```
+HEAP SUMMARY:
+    in use at exit: 0 bytes in 0 blocks
+All heap blocks were freed -- no leaks are possible
+ERROR SUMMARY: 0 errors from 0 contexts
+```
+
 ### Como Obter PID de Processos
 
 ```bash
@@ -305,24 +382,63 @@ Duração (segundos): [tempo_monitoramento]
 
 #### 4. Análise dos Resultados
 
-Os testes exibem métricas a cada segundo:
+Quando executados individualmente, os testes exibem métricas detalhadas a cada segundo:
 
 **test_cpu:**
 ```
-[1/10] CPU: 45.2% | Threads: 4 | Context Switches: 1523
-[2/10] CPU: 48.1% | Threads: 4 | Context Switches: 1687
+[2025-11-17 14:32:01] CPU: 45.2% | User: 1234 ticks | System: 567 ticks | Threads: 4 | Context Switches: 1523
+[2025-11-17 14:32:02] CPU: 48.1% | User: 1289 ticks | System: 612 ticks | Threads: 4 | Context Switches: 1687
 ```
 
 **test_memory:**
 ```
-[1/10] RSS: 125.4 MB | VSZ: 512.8 MB | Page Faults: 3421
-[2/10] RSS: 128.2 MB | VSZ: 512.8 MB | Page Faults: 3456
+[2025-11-17 14:32:01] RSS: 125.4 MB | VSZ: 512.8 MB | Page Faults: 3421 | Swap: 0.0 MB
+[2025-11-17 14:32:02] RSS: 128.2 MB | VSZ: 512.8 MB | Page Faults: 3456 | Swap: 0.0 MB
 ```
 
 **test_io:**
 ```
-[1/10] Read: 2.4 MB/s | Write: 1.8 MB/s | Syscalls: 245
-[2/10] Read: 3.1 MB/s | Write: 2.2 MB/s | Syscalls: 312
+[2025-11-17 14:32:01] Disk Read: 2.4 MB/s | Disk Write: 1.8 MB/s | Read Ops: 123/s | Write Ops: 89/s | Syscalls: 245 | TCP Conns: 4
+[2025-11-17 14:32:02] Disk Read: 3.1 MB/s | Disk Write: 2.2 MB/s | Read Ops: 145/s | Write Ops: 102/s | Syscalls: 312 | TCP Conns: 4
+```
+
+#### 5. Testes Automatizados (run_tests.sh)
+
+Quando executado via script automatizado, a saída é resumida:
+
+```bash
+sudo ./scripts/run_tests.sh 5
+```
+
+**Saída esperada:**
+```
+========================================
+  TESTES AUTOMATIZADOS - RESOURCE MONITOR
+========================================
+
+Compilando o projeto...
+Iniciando processo de teste...
+✓ PID de teste: 12345
+
+════════════════════════════════════════
+  TESTE 1: CPU Monitor (5 segundos)
+════════════════════════════════════════
+✅ CSV gerado: cpu-monitor-20251117_150909.csv
+   Gerando gráfico...
+
+════════════════════════════════════════
+  TESTE 2: Memory Monitor (5 segundos)
+════════════════════════════════════════
+✅ CSV gerado: memory-monitor-20251117_150912.csv
+   Gerando gráfico...
+
+════════════════════════════════════════
+  TESTE 3: I/O Monitor (5 segundos)
+════════════════════════════════════════
+✅ CSV gerado: io-monitor-20251117_150915.csv
+   Gerando gráfico...
+
+Os gráficos serão exibidos em janelas separadas.
 ```
 
 ### Validação de Precisão
@@ -359,26 +475,42 @@ sudo iotop -p [PID]
 ### Grupo 8 - Turma 04N - Sistemas Operacionais
 
 #### Aluno 1: Felipe Simionato Bueno
-**Responsabilidade:** Resource Profiler + Integração
+**Responsabilidade:** Resource Profiler + Integração + Exportação CSV
 
 **Contribuições:**
 - Implementação de `cpu_monitor.c`
   - Coleta de tempo de CPU (user/system time)
   - Cálculo de percentual de uso de CPU
   - Contagem de threads e context switches
+  - Exportação automática para CSV com timestamps formatados
+  - Funções de cleanup para evitar memory leaks
 - Implementação de `memory_monitor.c`
   - Coleta de RSS (Resident Set Size) e VSZ (Virtual Size)
   - Monitoramento de page faults e swap
+  - Exportação automática para CSV
+  - Funções de cleanup para gerenciamento de recursos
 - Integração dos três componentes no menu principal (`main.c`)
   - Desenvolvimento do menu hierárquico interativo
   - Integração de Resource Profiler, Namespace Analyzer e Cgroup Manager
+  - Exibição formatada com timestamps legíveis
+  - Chamadas automáticas de cleanup após monitoramento
 - Criação do `Makefile` base
   - Configuração de flags de compilação (`-Wall -Wextra -std=c17`)
   - Definição de targets para compilação modular
 - Estruturação inicial do projeto e organização de diretórios
+- Correção de memory leaks e validação com valgrind
+  - Implementação de funções `*_csv_close()` para todos os monitores
+  - Validação completa: 0 bytes leaked, 0 errors
+- Desenvolvimento de scripts de automação
+  - `run_tests.sh`: Execução automatizada de testes com geração de CSVs
+  - `valgrind_test.sh`: Validação automatizada de memory leaks
+- Atualização de `visualize.py`
+  - Conversão de timestamps Unix para formato legível
+  - Geração de gráficos para CPU, Memória e I/O
+  - Visualização multi-painel com métricas detalhadas
 
 #### Aluno 2: Vinicius Pelissari Jordani
-**Responsabilidade:** Resource Profiler + Testes
+**Responsabilidade:** Resource Profiler (I/O) + Testes + Exportação CSV
 
 **Contribuições:**
 - Implementação de `io_monitor.c`
@@ -387,9 +519,12 @@ sudo iotop -p [PID]
   - Coleta de estatísticas de rede via `/proc/net/dev`
   - Contagem de conexões TCP ativas via `/proc/net/tcp`
   - Cálculo de taxas de leitura/escrita (bytes/s)
+  - Exportação automática para CSV com todas as métricas de I/O e rede
+  - Função de cleanup para gerenciamento de recursos
 - Criação de `test_io.c` para validação do monitor de I/O
   - Loop de amostragem configurável
   - Exibição de métricas em tempo real
+  - Exportação automática para CSV durante testes
 - Atualização do Makefile com targets de testes
   - Adição de regras para `test_cpu`, `test_memory`, `test_io`
   - Configuração de linkagem com `-lm`
@@ -397,6 +532,8 @@ sudo iotop -p [PID]
   - Fix no parsing de `/proc/<pid>/stat` (cpu_monitor.c)
   - Fix no parsing de `/proc/<pid>/statm` (memory_monitor.c)
 - Documentação de uso, testes e troubleshooting
+- Atualização dos programas de teste para incluir exportação CSV
+  - Integração de `*_csv_write()` e `*_csv_close()` em todos os testes
 
 #### Aluno 3: Kevin Mitsuo Lohmann Abe
 **Responsabilidade:** Namespace Analyzer + Experimentos
