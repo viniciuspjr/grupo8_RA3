@@ -56,9 +56,15 @@ int main(void) {
                (unsigned long long)sample.swap_bytes);
         printf("---------------------------------------------\n");
 
+        // Salva amostra em CSV
+        memory_sample_csv_write(&sample);
+
         // Espera 1 segundo antes da próxima leitura
         sleep(1);
     }
+
+    // Fecha o arquivo CSV
+    memory_sample_csv_close();
 
     return 0;
 }

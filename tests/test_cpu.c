@@ -64,9 +64,15 @@ int main(void) {
                (unsigned long long)sample.threads);
         printf("---------------------------------------------\n");
 
+        // Salva amostra em CSV
+        cpu_sample_csv_write(&sample);
+
         // Espera 1 segundo antes da próxima leitura
         sleep(1);
     }
+
+    // Fecha o arquivo CSV
+    cpu_sample_csv_close();
 
     return 0;
 }

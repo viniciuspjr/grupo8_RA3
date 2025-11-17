@@ -91,7 +91,13 @@ int main(void) {
         printf(" Connections   : %10llu\n",
                (unsigned long long)sample.connections);
         printf("=============================================\n");
+
+        // Salva amostra em CSV
+        io_sample_csv_write(&sample);
     }
+
+    // Fecha o arquivo CSV
+    io_sample_csv_close();
 
     return 0;
 }
