@@ -419,7 +419,7 @@ sudo iotop -p [PID]
 - Documentação completa dos experimentos disponível em:
   `docs/experimentos_namespace.md`
 
-#### Aluno 4: João Barowski
+#### Aluno 4: João Guilherme Gembarowski
 **Responsabilidade:** Control Group Manager + Análise
 
 **Contribuições:**
