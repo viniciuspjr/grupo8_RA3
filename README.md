@@ -72,9 +72,9 @@ resource-monitor/
 ## Requisitos e Dependências
 
 ### Sistema Operacional
-- **Linux Kernel 5.x ou superior** (testado em Ubuntu 20.04/22.04)
+- **Linux Kernel 5.15 ou superior** (Testado em Ubuntu 24.04 LTS)
 - **WSL2** (Windows Subsystem for Linux) para desenvolvimento em Windows
-- Suporte a **cgroup v1** habilitado no sistema
+- Suporte a **cgroup v2** habilitado no sistema
 
 ### Ferramentas de Desenvolvimento
 - **GCC** (GNU Compiler Collection) versão 9.0 ou superior
@@ -153,7 +153,11 @@ make clean
 ## Instruções de Uso
 
 ### Execução do Programa Principal
+```bash
+# Antes de executar o programa, os controladores de cgroup v2 devem ser ativados na raiz. Este comando só precisa ser executado uma vez por reinicialização da VM.
 
+echo "+cpu +memory +io" | sudo tee /sys/fs/cgroup/cgroup.subtree_control
+```
 O sistema possui um **menu interativo integrado**:
 
 ```bash
@@ -221,7 +225,16 @@ PID 1234 namespaces:
   user -> 4026531837
 ```
 
-#### Exemplo 3: Criar e Limitar Recurso com Cgroup
+#### Exemplo 3: Criar e Limitar Recurso com Cgroup (v2)
+
+**Passo 1 (Obrigatório): Ativar Controladores (Uma vez por boot)**
+
+Antes de usar o menu de Cgroup, o kernel do Linux (v2) precisa ser instruído a "delegar" os controladores. Execute este comando no terminal:
+
+```bash
+echo "+cpu +memory +io" | sudo tee /sys/fs/cgroup/cgroup.subtree_control
+```
+**Agora, inicie o programa e use o menu:**
 
 ```bash
 sudo ./resource-monitor
@@ -229,23 +242,28 @@ sudo ./resource-monitor
 # No menu:
 Escolha: 3 (Control Group Manager)
 
-# Passo 1: Criar cgroup
+# Criar o grupo (aqui 'cpu' é apenas para o menu, no v2 o grupo é unificado)
 Escolha: 1 (Criar cgroup)
 Controlador: cpu
 Nome do grupo: teste_limite
 
-# Passo 2: Mover processo para o cgroup
+# Criar o grupo (repita para 'memory' para garantir)
+Escolha: 1 (Criar cgroup)
+Controlador: memory
+Nome do grupo: teste_limite
+
+# Mover o processo (ex: PID 1234)
 Escolha: 2 (Mover PID)
 Controlador: cpu
 Grupo: teste_limite
 PID: 1234
 
-# Passo 3: Definir limite de CPU (50% de 1 núcleo)
+# Definir o limite de CPU
 Escolha: 4 (Definir limite de CPU)
 Grupo: teste_limite
 Cores: 0.5
 
-# Passo 4: Verificar uso atual
+# Verificar as métricas
 Escolha: 6 (Ver uso de CPU)
 Grupo: teste_limite
 ```
@@ -585,7 +603,13 @@ O projeto interage diretamente com as seguintes interfaces do kernel Linux:
 - **`/proc/<pid>/ns/*`**: Namespaces de processos (pid, net, mnt, uts, ipc, user)
 - **`/proc/net/dev`**: Estatísticas de interfaces de rede
 - **`/proc/net/tcp`**: Conexões TCP ativas
-- **`/sys/fs/cgroup/*`**: Interfaces de control groups (cgroup v1)
+- **`/sys/fs/cgroup/cgroup.subtree_control`**: (cgroup v2) Ativação de controladores
+- **`/sys/fs/cgroup/<grupo>/cgroup.procs`**: (cgroup v2) Para mover PIDs
+- **`/sys/fs/cgroup/<grupo>/cpu.max`**: (cgroup v2) Para limitar CPU
+- **`/sys/fs/cgroup/<grupo>/memory.max`**: (cgroup v2) Para limitar Memória
+- **`/sys/fs/cgroup/<grupo>/cpu.stat`**: (cgroup v2) Para ler uso de CPU
+- **`/sys/fs/cgroup/<grupo>/memory.current`**: (cgroup v2) Para ler uso de Memória
+- **`/sys/fs/cgroup/<grupo>/io.stat`**: (cgroup v2) Para ler I/O (BlkIO)
 
 ## Troubleshooting
 
@@ -597,13 +621,11 @@ sudo ./resource-monitor
 sudo ./test_io
 ```
 
-### Problema: "No such file or directory" ao acessar cgroup
-**Solução:** Verifique se cgroup v1 está montado no sistema:
+### Problema: "No such file or directory" (ex: cgroup.procs ou cpu.max) Solução: Isso significa que os controladores não foram ativados. Saia do programa e execute o comando de ativação (uma vez por boot):
 ```bash
-ls /sys/fs/cgroup/cpu
-ls /sys/fs/cgroup/memory
+echo "+cpu +memory +io" | sudo tee /sys/fs/cgroup/cgroup.subtree_control
 ```
-Se não existir, o sistema pode estar usando cgroup v2 (não suportado nesta versão).
+### Em seguida, remova o grupo "zumbi" (sudo rmdir /sys/fs/cgroup/SEU_GRUPO) e tente novamente.
 
 ### Problema: "Não foi possível ler tempos do processo"
 **Solução:** Verifique se o processo ainda existe:
