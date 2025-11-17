@@ -416,6 +416,9 @@ sudo iotop -p [PID]
   - Validação de efetividade de isolamento
 - Geração de relatórios científicos em CSV para análise posterior
 
+- Documentação completa dos experimentos disponível em:
+  `docs/experimentos_namespace.md`
+
 #### Aluno 4: João Barowski
 **Responsabilidade:** Control Group Manager + Análise
 
