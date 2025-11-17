@@ -3,7 +3,7 @@
 
 #include <sys/types.h> // Para pid_t
 
-// --- NOVA STRUCT PARA I/O ---
+
 /**
  * @brief Armazena estatísticas de I/O (BlkIO) lidas do cgroup.
  */
@@ -27,11 +27,11 @@ long long cgroup_get_memory_usage(const char *group_name);
 long long cgroup_get_cpu_usage(const char *group_name);
 
 /**
- * @brief Lê as estatísticas de I/O (rbytes/wbytes) de um cgroup (cgroup v2).
- * @param group_name O nome do cgroup.
- * @return Uma struct CgroupIOStats. rbytes será -1 em caso de falha.
+ * @brief 
+ * @param group_name 
+ * @return 
  */
 CgroupIOStats cgroup_get_io_stats(const char *group_name);
 
 
-#endif // CGROUP_Hs
+#endif 
