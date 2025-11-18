@@ -1,51 +1,64 @@
-# Arquitetura do Sistema Resource-Monitor
+ # Arquitetura do Sistema Resource-Monitor
 
-## 1. Visão Geral
+## Visão Geral
 
-O `resource-monitor` é uma ferramenta de linha de comando (CLI) interativa, baseada em menus, escrita em C (padrão C17). Ela é projetada para analisar, monitorar e controlar os recursos de processos no sistema operacional Linux.
+Sistema modular em C (std=c17) para monitoramento de recursos Linux através de `/proc` e `/sys/fs/cgroup`.
 
-A arquitetura é modular, com cada componente principal (Profiler, Analyzer, Manager) expondo uma API pública clara através de seus arquivos de cabeçalho (`.h`) na pasta `include/`.
+**Componentes principais:**
+- **Resource Profiler**: Monitora CPU, memória e I/O de processos
+- **Namespace Analyzer**: Analisa isolamento via namespaces
+- **Control Group Manager**: Gerencia limites de recursos via cgroups
 
-O ponto de entrada `src/main.c` atua como o "orquestrador" (Aluno 1). Ele apresenta uma interface de menu ao usuário e chama as funções dos módulos correspondentes com base na entrada do usuário.
+## Estrutura do Projeto
 
-## 2. Decisão de Design Crítica: cgroup v2 (Ubuntu 24.04)
+```
+resource-monitor/
+├── README.md              # Documentação principal do projeto
+├── Makefile               # Automação de compilação
+├── docs/
+│   └── ARCHITECTURE.md    # Arquitetura do sistema (este arquivo)
+├── include/
+│   ├── monitor.h          # Interface do Resource Profiler
+│   ├── namespace.h        # Interface do Namespace Analyzer
+│   └── cgroup.h           # Interface do Control Group Manager
+├── src/
+│   ├── cpu_monitor.c      # Coleta de métricas de CPU + CSV export
+│   ├── memory_monitor.c   # Coleta de métricas de memória + CSV export
+│   ├── io_monitor.c       # Coleta de métricas de I/O e rede + CSV export
+│   ├── namespace_analyzer.c  # Análise de namespaces
+│   ├── cgroup_manager.c   # Gerenciamento de cgroups
+│   └── main.c             # Menu integrado principal
+├── tests/
+│   ├── test_cpu.c         # Teste do monitor de CPU
+│   ├── test_memory.c      # Teste do monitor de memória
+│   └── test_io.c          # Teste do monitor de I/O
+└── scripts/
+    ├── visualize.py       # Visualização de dados em gráficos
+    ├── run_tests.sh       # Execução automatizada de testes
+    ├── valgrind_test.sh   # Validação de memory leaks
+    └── compare_tools.sh   # Comparação com ferramentas do sistema
+```
 
-Este projeto foi desenvolvido e testado no **Ubuntu 24.04 LTS**, que utiliza a hierarquia **cgroup v2** por padrão. Esta decisão dita o design do módulo `cgroup_manager`:
+## Fontes de Dados
 
-1.  **Hierarquia Unificada:** Não existem mais montagens separadas para `cpu`, `memory`, `blkio`. Todos os controladores residem em uma única árvore em `/sys/fs/cgroup`.
-2.  **Ativação de Controlador:** Os controladores (`cpu`, `memory`, `io`) devem ser ativados **antes** da criação do grupo, escrevendo (ex: `+cpu +memory +io`) no arquivo `cgroup.subtree_control` do diretório pai.
-3.  **Nomes de Arquivo V2:** O código usa os nomes de arquivo modernos do v2 (ex: `cpu.max`, `memory.max`, `cpu.stat`, `io.stat`).
+- **`/proc/<pid>/*`**: Métricas de processos (CPU, memória, I/O, namespaces)
+- **`/sys/fs/cgroup/`**: Control groups v2 para limites e estatísticas
 
-## 3. Fontes de Dados do Kernel
-
-O sistema interage diretamente com duas interfaces principais do kernel, sem bibliotecas externas:
-
-* **/proc (Procfs):** Usado para *leitura* e *profiling*. É a fonte de dados para os módulos **Resource Profiler** (Aluno 1/2) e **Namespace Analyzer** (Aluno 3).
-* **/sys/fs/cgroup (Cgroupfs):** Usado para *leitura* e *escrita*. É a fonte de dados para o **Control Group Manager** (Aluno 4) para aplicar limites e coletar métricas de *grupos*.
-
-## 4. Componentes Principais e APIs
-
-### 4.1. CLI (main.c)
-* **Responsável:** Aluno 1 (Integração).
-* **Função:** Ponto de entrada e interface do usuário (UI). Apresenta menus, coleta a entrada do usuário (`scanf`) e chama as funções de back-end apropriadas.
-* **Estrutura:**
-    * `main()`: Loop principal do menu.
-    * `handle_profiler_menu()`: Lógica para o submenu do Profiler.
-    * `handle_namespace_menu()`: Lógica para o submenu do Namespace.
-    * `handle_cgroup_menu()`: Lógica para o submenu do Cgroup.
+## Componentes
 
 ### 4.2. Resource Profiler (monitor.h)
-* **Responsável:** Aluno 1 (CPU/Mem) e Aluno 2 (I/O/Rede).
+* **Responsável:** Felipe Bueno (CPU/Mem) e Vinícius Jordani (I/O/Rede).
 * **Função:** Coletar métricas detalhadas de um processo específico (por PID).
 * **API Exposta:**
     * `CpuMonitorState`, `MemorySample`, `IoSample` (Structs de dados).
-    * `cpu_monitor_init` / `cpu_monitor_sample`: Coleta CPU%, threads, etc. (Fonte: `/proc/[pid]/stat`, `/proc/stat`).
-    * `memory_monitor_sample`: Coleta RSS, VSZ, Page Faults. (Fonte: `/proc/[pid]/status`, `/proc/[pid]/statm`).
-    * `io_monitor_init` / `io_monitor_sample`: Coleta I/O de disco e rede, e calcula taxas. (Fonte: `/proc/[pid]/io`, `/proc/[pid]/net/dev`).
-    * `..._csv_write`: Funções auxiliares para exportar dados (conforme `main.c`).
+    * `cpu_monitor_init` / `cpu_monitor_sample`: Coleta CPU%, threads, context switches. (Fonte: `/proc/[pid]/stat`, `/proc/stat`).
+    * `memory_monitor_sample`: Coleta RSS, VSZ, Page Faults, Swap. (Fonte: `/proc/[pid]/status`, `/proc/[pid]/statm`).
+    * `io_monitor_init` / `io_monitor_sample`: Coleta I/O de disco e rede, calcula taxas e operações/s. (Fonte: `/proc/[pid]/io`, `/proc/net/dev`, `/proc/net/tcp`).
+    * `cpu_sample_csv_write` / `memory_sample_csv_write` / `io_sample_csv_write`: Exportação automática para CSV com timestamps formatados.
+    * `cpu_sample_csv_close` / `memory_sample_csv_close` / `io_sample_csv_close`: Funções de cleanup para evitar memory leaks.
 
 ### 4.3. Namespace Analyzer (namespace.h)
-* **Responsável:** Aluno 3.
+* **Responsável:** Kevin Abe.
 * **Função:** Analisar o isolamento de processos via namespaces.
 * **API Exposta:**
     * `NamespaceInfo` (Struct de dados).
@@ -55,7 +68,7 @@ O sistema interage diretamente com duas interfaces principais do kernel, sem bib
 * **Lógica Principal:** A implementação deve usar `readlink` para ler os links simbólicos em `/proc/[pid]/ns/` (ex: `ns/pid`, `ns/net`) e comparar seus valores de inode.
 
 ### 4.4. Control Group Manager (cgroup.h)
-* **Responsável:** Aluno 4.
+* **Responsável:** João Guilherme.
 * **Função:** Criar grupos, mover processos para grupos, aplicar limites e ler métricas de *grupos* inteiros.
 * **API Exposta (`cgroup.h`):**
     * `cgroup_create(...)`: Cria o diretório do grupo (ex: `mkdir /sys/fs/cgroup/MEU_GRUPO`).
@@ -66,24 +79,95 @@ O sistema interage diretamente com duas interfaces principais do kernel, sem bib
     * `cgroup_get_cpu_usage(...)`: Lê e "parseia" `usage_usec` de `cpu.stat`.
     * `cgroup_get_io_stats(...)`: Lê e "parseia" `rbytes` e `wbytes` de `io.stat`.
 
-## 5. Fluxo de Dados (Exemplo de Integração)
+## 5. Fluxo de Dados
 
-O `main.c` demonstra perfeitamente a arquitetura.
+### Monitoramento de Recursos
 
-**Exemplo: Monitorar a CPU de um processo (Alunos 1 e 2)**
-1.  **[main.c]** O usuário vê `print_main_menu()` e digita `1`.
-2.  **[main.c]** A `switch(opt)` chama `handle_profiler_menu()`.
-3.  **[main.c]** O usuário vê `print_profiler_menu()` e digita `1`.
-4.  **[main.c]** `handle_profiler_menu()` pede ao usuário um `PID` e `Duracao`.
-5.  **[main.c]** Chama `cpu_monitor_init()` (API do Aluno 1/2).
-6.  **[main.c]** Entra em um loop `for` (baseado na `Duracao`).
-7.  Dentro do loop, `main.c` chama `cpu_monitor_sample()` (API do Aluno 1/2) e imprime os resultados da struct `CpuSample`.
+```
+main.c → Monitor API → /proc/<pid>/* → Display + CSV
+```
 
-**Exemplo: Limitar Memória (Alunos 1 e 4)**
-1.  **[main.c]** O usuário vê `print_main_menu()` e digita `3`.
-2.  **[main.c]** A `switch(opt)` chama `handle_cgroup_menu()`.
-3.  **[main.c]** O usuário vê `print_cgroup_menu()` e digita `3`.
-4.  **[main.c]** `handle_cgroup_menu()` pede ao usuário um `Grupo` e `Bytes`.
-5.  **[main.c]** Chama `cgroup_set_memory_limit(g, b)` (API do Aluno 4).
-6.  **[cgroup_manager.c]** (Aluno 4) Abre o arquivo `/sys/fs/cgroup/NOME_DO_GRUPO/memory.max` e escreve o valor em bytes.
-7.  **[main.c]** Imprime "Limite definido!".
+1. Usuário informa PID e duração
+2. `*_monitor_init()` lê estado inicial
+3. Loop a cada 1s: `*_monitor_sample()` → coleta métricas → exibe + `*_csv_write()`
+4. `*_csv_close()` finaliza arquivo
+
+**Resultado:** Console com métricas em tempo real + CSV exportado
+
+### Análise de Namespaces
+
+```
+main.c → readlink(/proc/<pid>/ns/*) → Comparação de inodes
+```
+
+- Lista namespaces de um processo
+- Compara inodes entre processos (mesmo inode = namespace compartilhado)
+
+### Cgroups
+
+```
+main.c → write(/sys/fs/cgroup/...) → Kernel aplica limite
+```
+
+1. `cgroup_create()` → cria diretório
+2. `cgroup_move_pid()` → move processo para grupo
+3. `cgroup_set_*_limit()` → escreve limite em arquivo de controle
+4. `cgroup_get_*_usage()` → lê uso atual
+
+### Visualização de CSV
+
+```
+CSV → visualize.py → pandas + matplotlib → Gráficos
+```
+
+**Uso:**
+```bash
+python3 scripts/visualize.py cpu-monitor-20251117_150909.csv
+```
+
+O script automaticamente:
+- Detecta o tipo de monitor (CPU/Memory/I/O) pelas colunas
+- Converte timestamps Unix para formato legível
+- Gera gráficos multi-painel:
+  - **CPU**: Usage %, User/System Time, Context Switches, Threads
+  - **Memory**: RSS/VSZ, Page Faults, Swap, Estatísticas
+  - **I/O**: Disk Rate, Ops/sec, Syscalls, Network Connections
+
+### Testes Automatizados
+
+```
+run_tests.sh → Compilação → Execução → CSVs → Gráficos
+```
+
+**Uso:**
+```bash
+sudo ./scripts/run_tests.sh 
+```
+
+**O que acontece:**
+1. Compila o projeto (`make clean && make tests`)
+2. Cria processo de teste em background (`sleep 120 &`)
+3. Executa sequencialmente: `test_cpu`, `test_memory`, `test_io`
+4. Cada teste gera seu CSV com timestamp formatado
+5. Abre visualizações automaticamente em paralelo
+
+**Saída:**
+```
+========================================
+  TESTES AUTOMATIZADOS - RESOURCE MONITOR
+========================================
+
+Compilando o projeto...
+Iniciando processo de teste...
+✓ PID de teste: 12345
+
+════════════════════════════════════════
+  TESTE 1: CPU Monitor (5 segundos)
+════════════════════════════════════════
+✅ CSV gerado: cpu-monitor-20251117_150909.csv
+   Gerando gráfico...
+
+[... Memory e I/O ...]
+
+Os gráficos serão exibidos em janelas separadas.
+```
