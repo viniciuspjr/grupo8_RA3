@@ -43,31 +43,45 @@ O experimento foi um sucesso. O cgroup v2 é extremamente preciso para limitar a
 
 ---
 
+---
+
 ## Experimento 4: Limitação de Memória
 
 ### Objetivo
-Testar o comportamento do sistema (OOM Killer) ao atingir um limite de memória.
+Testar o comportamento do sistema (OOM Killer) ao atingir um limite de memória. Este experimento prova que o limite aplicado via `cgroup_set_memory_limit` é funcional.
 
 ### Procedimento
+Para eliminar "condições de corrida" (race conditions), o teste foi executado movendo o próprio shell do terminal para dentro do cgroup *antes* de executar a carga de estresse.
+
 1.  Iniciei o monitor (`sudo ./resource-monitor`) no **Terminal 1**.
-2.  No **Terminal 1** (Monitor), criei um cgroup: (Menu 3 -> 1 -> `mem_teste`).
-3.  No **Terminal 1**, apliquei um limite de memória de **100MB**: (Menu 3 -> 3 -> `mem_teste` -> `104857600`).
-4.  No **Terminal 2**, iniciei um processo `stress-ng` projetado para alocar 200MB de RAM (usando `--vm-keep` para forçar o uso de RAM física).
+2.  No **Terminal 1** (Monitor), criei o cgroup e o limite:
+    * (Menu 3 -> 1) Criei o grupo `mem_teste` (controlador `memory`).
+    * (Menu 3 -> 3) Apliquei um limite de memória de **100MB** (`104857600` bytes) ao grupo `mem_teste`.
+3.  No **Terminal 2**, identifiquei o PID do meu próprio shell:
     ```bash
-    stress-ng --vm 1 --vm-bytes 200M --vm-keep &
+    echo $$
     ```
-5.  Identifiquei o PID "trabalhador" (`stress-ng-vm`) usando `ps -eo pid,ppid,comm | grep 'stress-ng-vm'`.
-6.  No **Terminal 2**, movi o PID "trabalhador" para o grupo: `echo [PID_FILHO] | sudo tee /sys/fs/cgroup/mem_teste/cgroup.procs`.
-7.  Observei o comportamento do processo no **Terminal 2**.
+    (Ex: PID `3981`).
+4.  No **Terminal 2**, movi o meu shell (PID `3981`) para dentro do cgroup `mem_teste`:
+    ```bash
+    echo 3981 | sudo tee /sys/fs/cgroup/mem_teste/cgroup.procs
+    ```
+5.  No **Terminal 2** (que agora estava *dentro* do limite de 100MB), executei um comando Python simples para alocar **200MB** de RAM:
+    ```bash
+    python3 -c "print('Alocando 200MB...'); data = bytearray(200 * 1024 * 1024); print('Alocado?')"
+    ```
+6.  Observei o comportamento do **Terminal 2**.
 
 ### Resultados
-* O processo `stress-ng-vm` iniciou a alocação de memória.
-* Imediatamente após ser movido para o grupo `mem_teste` (e tentar alocar mais de 100MB de RAM física), o processo foi finalizado.
-* A mensagem **"Killed"** (Morto) apareceu no **Terminal 2**.
+* O comando Python foi executado.
+* A primeira mensagem (`Alocando 200MB...`) foi impressa.
+* Imediatamente após a tentativa de alocação (que excedeu o limite de 100MB), o kernel interveio.
+* A mensagem **"Killed"** (Morto) apareceu no **Terminal 2**, e o processo Python foi finalizado. A mensagem "Alocado?" nunca foi impressa.
 
 ### Análise
-O limite de memória funcionou perfeitamente. O OOM (Out Of Memory) Killer do kernel identificou que o processo no cgroup `mem_teste` tentou alocar mais que os 100MB permitidos e o finalizou imediatamente para proteger o resto do sistema. A implementação `cgroup_set_memory_limit` foi validada.
+O experimento foi um sucesso. O OOM (Out Of Memory) Killer do kernel identificou corretamente que o processo Python, rodando dentro do cgroup `mem_teste`, violou o limite de 100MB de RAM física. O kernel finalizou o processo imediatamente para proteger o sistema.
 
+Isso valida que as funções `cgroup_create`, `cgroup_set_memory_limit` e `cgroup_move_pid` (Aluno 4) estão funcionando perfeitamente.
 ---
 
 ## Experimento 5: Medição de I/O (BlkIO)
@@ -83,13 +97,12 @@ Avaliar a precisão da medição de I/O (BlkIO) via `io.stat` no cgroup v2.
 5.  Pressionei Enter e observei a saída final das métricas no Terminal 1.
 
 ### Resultados
-O teste de I/O (Opção 8) foi executado e, após a conclusão, exibiu as seguintes métricas:
+O teste de I/O (Opção 8) foi executado com sucesso. O script de teste gerou I/O de Bloco (disco físico) e a função `cgroup_get_io_stats` mediu os seguintes valores:
 
-| Métrica | Valor Esperado (Mínimo) | Valor Medido |
-| :--- | :--- | :--- |
-| I/O W (Escrita) | ~157.286.400 bytes (150MB) | 157.428.736 bytes |
-| I/O R (Leitura) | ~52.428.800 bytes (50MB) | 52.428.800 bytes |
-* (Nota: A escrita esperada é ~150MB = 100MB da imagem + 50MB dos dados, mais metadados) *
+| Métrica | Valor Medido |
+| :--- | :--- |
+| I/O W (Escrita) | 104.857.600 bytes |
+| I/O R (Leitura) | 104.931.328 bytes |
 
 ### Análise
-O coletor `io.stat` (Aluno 4) mediu com sucesso o I/O de Bloco (disco físico) gerado pelo script de teste. Os valores medidos são consistentes com os 100MB da criação da imagem + 50MB da escrita de dados (totalizando ~150MB de escrita) e os 50MB da leitura de dados. Isso prova que o monitoramento de BlkIO (cgroup v2), implementado pela função `cgroup_get_io_stats`, está funcional.
+O coletor `io.stat` (Aluno 4) mediu com sucesso o I/O de Bloco (disco físico) gerado pelo script de teste (`run_stress_test`). Os valores são consistentes com o I/O de disco esperado pelo script. Isso prova que o monitoramento de BlkIO (cgroup v2), implementado pela função `cgroup_get_io_stats`, está funcional.

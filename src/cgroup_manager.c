@@ -159,38 +159,48 @@ long long cgroup_get_cpu_usage(const char *group_name) {
 
 /**
  * Lê as estatísticas de I/O (v2) - (BlkIO)
+ * Precisamos ler o arquivo 'io.stat' e somar 'rbytes' e 'wbytes'
+ * de todas as linhas de dispositivo (ex: "8:0 rbytes=123...").
  */
 CgroupIOStats cgroup_get_io_stats(const char *group_name) {
     char path[BUFFER_SIZE];
     snprintf(path, sizeof(path), "%s/%s/io.stat", CGROUP_BASE_PATH, group_name);
 
-    CgroupIOStats stats = {-1, -1}; // Inicializa com valores de erro
+    CgroupIOStats stats = {0, 0}; // Inicializa com ZER0
 
     FILE *fp = fopen(path, "r");
     if (fp == NULL) {
         perror("Falha ao ler io.stat");
         fprintf(stderr, "Caminho: %s\n", path);
-        return stats; // Retorna a struct de erro
+        stats.rbytes = -1; // Sinaliza erro
+        stats.wbytes = -1;
+        return stats; 
     }
 
     char line_buffer[BUFFER_SIZE];
-    long long rbytes_val = -1;
-    long long wbytes_val = -1;
+    long long value;
 
+    // Loop por todas as linhas (ex: "8:0 rbytes=123 wbytes=456 ...")
     while (fgets(line_buffer, sizeof(line_buffer), fp)) {
-        // Tenta encontrar rbytes
-        if (sscanf(line_buffer, "rbytes %lld", &rbytes_val) == 1) {
-            stats.rbytes = rbytes_val;
+        
+        // CORREÇÃO: Usamos strstr para encontrar os valores
+        // pois sscanf é muito frágil para este formato.
+        
+        char *ptr_rbytes = strstr(line_buffer, "rbytes=");
+        char *ptr_wbytes = strstr(line_buffer, "wbytes=");
+        
+        if (ptr_rbytes) {
+            if (sscanf(ptr_rbytes, "rbytes=%lld", &value) == 1) {
+                stats.rbytes += value; // Acumula o valor
+            }
         }
-        // Tenta encontrar wbytes
-        if (sscanf(line_buffer, "wbytes %lld", &wbytes_val) == 1) {
-            stats.wbytes = wbytes_val;
+        
+        if (ptr_wbytes) {
+            if (sscanf(ptr_wbytes, "wbytes=%lld", &value) == 1) {
+                stats.wbytes += value; // Acumula o valor
+            }
         }
     }
-
-    // Caso um dos valores não seja encontrado no arquivo
-    if (stats.rbytes == -1) stats.rbytes = 0;
-    if (stats.wbytes == -1) stats.wbytes = 0;
 
     fclose(fp);
     return stats;
