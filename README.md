@@ -152,12 +152,14 @@ make clean
 
 ## Instruções de Uso
 
-### Execução do Programa Principal
-```bash
-# Antes de executar o programa, os controladores de cgroup v2 devem ser ativados na raiz. Este comando só precisa ser executado uma vez por reinicialização da VM.
+### Passo 1 (Obrigatório): Ativar Controladores cgroup v2
 
+Antes de executar o programa, os controladores de cgroup v2 do kernel devem ser ativados. Este comando só precisa ser executado **uma vez por reinicialização** da VM.
+
+```bash
 echo "+cpu +memory +io" | sudo tee /sys/fs/cgroup/cgroup.subtree_control
 ```
+
 O sistema possui um **menu interativo integrado**:
 
 ```bash
@@ -220,20 +222,13 @@ PID 1234 namespaces:
   pid  -> 4026531836
   net  -> 4026531905
   mnt  -> 4026531841
-  uts  -> 4026531838
+  uts  -> 4026531838  
   ipc  -> 4026531839
   user -> 4026531837
 ```
 
 #### Exemplo 3: Criar e Limitar Recurso com Cgroup (v2)
 
-**Passo 1 (Obrigatório): Ativar Controladores (Uma vez por boot)**
-
-Antes de usar o menu de Cgroup, o kernel do Linux (v2) precisa ser instruído a "delegar" os controladores. Execute este comando no terminal:
-
-```bash
-echo "+cpu +memory +io" | sudo tee /sys/fs/cgroup/cgroup.subtree_control
-```
 **Agora, inicie o programa e use o menu:**
 
 ```bash
@@ -574,19 +569,20 @@ sudo iotop -p [PID]
 - Documentação completa dos experimentos disponível em:
   `docs/experimentos_namespace.md`
 
+```markdown
 #### Aluno 4: João Guilherme Gembarowski
 **Responsabilidade:** Control Group Manager + Análise
 
 **Contribuições:**
-- Implementação de `cgroup_manager.c`
-  - `cgroup_create()`: criação de cgroups em `/sys/fs/cgroup`
-  - `cgroup_move_pid()`: movimentação de processos entre cgroups
-  - `cgroup_set_cpu_limit()`: aplicação de limites de CPU
-  - `cgroup_set_memory_limit()`: aplicação de limites de memória
-  - `cgroup_get_cpu_usage()`: leitura de uso de CPU do cgroup
-  - `cgroup_get_memory_usage()`: leitura de uso de memória
-  - `cgroup_get_io_stats()`: leitura de estatísticas de I/O
-- Condução de experimentos de throttling
+- Implementação de `cgroup_manager.c` **para a API cgroup v2 (Ubuntu 24.04)**.
+  - `cgroup_create()`: Criação de grupos unificados em `/sys/fs/cgroup`.
+  - `cgroup_move_pid()`: Escrita do PID no arquivo `cgroup.procs`.
+  - `cgroup_set_cpu_limit()`: Escrita de quota/período no arquivo `cpu.max`.
+  - `cgroup_set_memory_limit()`: Escrita do limite de bytes no arquivo `memory.max`.
+  - `cgroup_get_cpu_usage()`: Leitura e "parsing" do arquivo `cpu.stat` (campo `usage_usec`).
+  - `cgroup_get_memory_usage()`: Leitura do arquivo `memory.current`.
+  - `cgroup_get_io_stats()`: Leitura e "parsing" (soma) dos campos `rbytes` e `wbytes` do `io.stat`.
+- Condução e documentação dos experimentos de throttling (CPU, Memória e I/O) para validar a implementação v2.
   - Testes de precisão de limitação de CPU (0.25, 0.5, 1.0, 2.0 cores)
   - Testes de limitação de memória e comportamento de OOM killer
 - Geração de relatórios comparativos (utilização vs limites configurados)
